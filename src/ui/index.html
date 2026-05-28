@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Command Workbench</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><button id="menuBtn" class="icon ghost" aria-label="menu">☰</button><h1>Command Workbench</h1></div>
+    <div class="status">
+      <span id="llmHealth" class="pill green">● LLM/CLI checking...</span>
+      <span id="remoteHealth" class="pill orange">● 远程主机待配置</span>
+      <button id="settingsBtn" class="icon ghost" aria-label="settings">⚙</button>
+      <button id="downloadBtn" class="primary">⇩ 下载 single 脚本</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section id="rawPanel" class="panel raw-panel">
+      <div class="panel-title"><h2>原始用例文本</h2><button id="copyRawBtn" class="icon ghost" title="复制原文">⧉</button></div>
+      <textarea id="rawText" spellcheck="false" placeholder="粘贴原始测试用例文本。未配置 LLM/CLI 时，系统不会解析或推断命令。"></textarea>
+      <button id="parseBtn" class="primary full">解析 / 生成草稿</button>
+      <ol id="pipelineSteps" class="pipeline-steps" aria-label="生成阶段">
+        <li id="pipelineDecompose" class="idle"><strong>文档拆解</strong><span>等待开始</span></li>
+        <li id="pipelineGenerate" class="idle"><strong>脚本生成</strong><span>等待开始</span></li>
+      </ol>
+    </section>
+
+    <section class="panel workbench-panel">
+      <div id="gapSummaryBar" class="gap-summary">
+        <span id="gapCount">缺口 0</span>
+        <button id="nextGapBtn" class="secondary" type="button" disabled>Next 缺口</button>
+      </div>
+      <div id="emptyState" class="empty-state">等待解析结果。系统不会使用本地关键字/正则猜测步骤。</div>
+      <section id="preconditionsSection" class="group hidden">
+        <h2>预制条件 <span id="preCount" class="count"></span></h2>
+        <div id="preconditionCards" class="rows"></div>
+      </section>
+      <section id="stepsSection" class="group hidden">
+        <h2>测试步骤 <span id="stepCount" class="count"></span></h2>
+        <div id="stepCards" class="rows"></div>
+      </section>
+      <div class="hint">ⓘ 执行说明：点击“执行到此”将按顺序从第 0 项开始，依次执行到所选项（含该步），不会执行后续项。验证脚本应检查 <code>$COMMAND_OUTPUT</code>，不要重复主命令。</div>
+    </section>
+
+    <section class="side-column">
+      <section class="panel console-panel">
+        <div class="panel-title"><h2>执行输出 Console</h2><button id="clearConsoleBtn" class="icon ghost" title="清空">🗑</button></div>
+        <pre id="console"></pre>
+      </section>
+      <section class="panel log-panel">
+        <h2>模型/CLI 交互记录</h2>
+        <ul id="worklog"></ul>
+        <h3>导出缺口</h3>
+        <ul id="gaps"></ul>
+      </section>
+    </section>
+  </main>
+
+  <div id="skillModal" class="modal-backdrop hidden">
+    <div class="modal-card">
+      <button id="closeSkillModal" class="modal-close">×</button>
+      <h2>保存为 skill?</h2>
+      <p>将以下“自然语言意图 → 命令草稿”保存为可复用 skill。</p>
+      <div class="mapping">
+        <label>自然语言意图（触发条件）<textarea id="skillIntent"></textarea></label>
+        <span class="arrow">→</span>
+        <label>命令草稿（将被保存）<textarea id="skillCommand"></textarea></label>
+      </div>
+      <label>名称（可编辑）<input id="skillName" /></label>
+      <label>描述（可选）<input id="skillDescription" /></label>
+      <div class="modal-actions"><button id="cancelSkillBtn" class="secondary">取消</button><button id="confirmSkillBtn" class="primary">确认保存</button></div>
+    </div>
+  </div>
+
+
+  <div id="settingsModal" class="modal-backdrop hidden">
+    <div class="modal-card settings-card">
+      <button id="closeSettingsModal" class="modal-close">×</button>
+      <h2>LLM / CLI 配置</h2>
+      <p>配置只保存在当前浏览器 localStorage；后端环境变量仍可作为默认配置。未配置时系统不会解析或推断命令。</p>
+      <label>调用方式
+        <select id="adapterProvider">
+          <option value="disabled">未配置</option>
+          <option value="local-claude">本地 Claude CLI</option>
+          <option value="local-codex">本地 Codex CLI</option>
+          <option value="llm-api">LLM API（URL / Key / Model）</option>
+        </select>
+      </label>
+      <div id="disabledSettings" class="provider-settings muted-box">未配置时系统不会解析或推断命令。请选择本地 Claude/Codex 或 LLM API。</div>
+      <div id="localSettings" class="provider-settings hidden">
+        <p class="field-help">直接调用运行本 Web 服务的机器上的本地 CLI。Claude 默认使用 <code>claude -p</code>；Codex 默认使用 <code>codex exec</code>。</p>
+        <label>Model（可选）
+          <input id="adapterModel" placeholder="不填则使用本地 CLI 默认模型" />
+        </label>
+        <details class="advanced-settings">
+          <summary>高级：命令路径覆盖</summary>
+          <label>CLI command
+            <input id="adapterCommand" placeholder="默认自动使用 claude 或 codex" />
+          </label>
+        </details>
+      </div>
+      <div id="apiSettings" class="provider-settings hidden">
+        <p class="field-help">普通 HTTP 模型 API 只需要这三项：URL、API key、Model。请求体会按 chat-completions 兼容格式发送，并携带 <code>model</code> 字段。</p>
+        <label>API URL
+          <input id="adapterUrl" placeholder="https://api.openai.com 或兼容 /v1/chat/completions endpoint" />
+        </label>
+        <label>API key
+          <input id="adapterApiKey" type="password" placeholder="sk-..." />
+        </label>
+        <label>Model
+          <input id="adapterApiModel" placeholder="例如 gpt-4.1 / claude-sonnet-4-6 / 你的兼容模型名" />
+        </label>
+      </div>
+      <div id="customCliSettings" class="provider-settings hidden">
+        <label>Custom CLI adapter command
+          <input id="customCliCommand" placeholder="node /path/to/adapter.cjs" />
+        </label>
+        <p class="field-help">高级模式：自定义 adapter 必须实现 Workbench JSON stdin/stdout 协议。详见 <code>docs/adapter-contract.md</code>。</p>
+      </div>
+      <div id="customHttpSettings" class="provider-settings hidden">
+        <p class="field-help">这是高级 Workbench adapter 协议端点，不是直接模型 API。它自己负责选择/调用模型，所以这里不配置 model。普通 HTTP 模型接口请选“LLM API（HTTP 模型接口）”。</p>
+        <label>Custom HTTP adapter URL
+          <input id="customHttpUrl" placeholder="http://127.0.0.1:8787/workbench-llm" />
+        </label>
+        <details class="advanced-settings">
+          <summary>高级：HTTP 鉴权</summary>
+          <label>API key
+            <input id="customHttpApiKey" type="password" placeholder="如果 HTTP adapter 需要鉴权，填这里" />
+          </label>
+          <label>API key header
+            <input id="customHttpApiKeyHeader" placeholder="Authorization" />
+          </label>
+          <label>API key prefix
+            <input id="customHttpApiKeyPrefix" placeholder="Bearer；如果不需要前缀则留空" />
+          </label>
+        </details>
+        <p class="field-help">高级模式：自定义 HTTP adapter 必须实现 Workbench JSON 协议。详见 <code>docs/adapter-contract.md</code>。</p>
+      </div>
+      <label>Timeout ms
+        <input id="adapterTimeout" type="number" min="1000" step="1000" value="30000" />
+      </label>
+
+      <details class="remote-box">
+        <summary>远程 SSH 配置</summary>
+        <input id="remoteHost" placeholder="物理机 IP / host" />
+        <input id="remoteUser" placeholder="SSH username（根据用例描述 + 用户输入确认）" />
+        <input id="remotePassword" placeholder="SSH password（默认认证方式）" type="password" />
+        <label><input id="rootMode" type="checkbox" /> root login</label>
+        <label><input id="rootAck" type="checkbox" /> 我确认 root 风险提示</label>
+        <div class="remote-actions">
+          <button id="confirmRemoteBtn" class="secondary" type="button">确认远程配置</button>
+          <button id="testRemoteBtn" class="secondary" type="button">测试 SSH 连通</button>
+        </div>
+        <p class="field-help">确认配置只检查必填项；测试连通会尝试 SSH。密码模式需要系统安装 <code>sshpass</code>，否则会提示无法自动测试。密码只保存在当前页面输入框，不写入 localStorage，不进入模型日志。</p>
+      </details>
+
+      <div class="modal-actions">
+        <button id="clearSettingsBtn" class="secondary">清空配置</button>
+        <button id="testSettingsBtn" class="secondary">测试 health</button>
+        <button id="saveSettingsBtn" class="primary">保存配置</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="/app.js"></script>
+</body>
+</html>

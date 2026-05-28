@@ -1,0 +1,53 @@
+# Command Workbench — development-repository ignore template
+# Use this for the internal repo where source code and design documents are kept.
+# Goal: keep docs/plans/knowledge examples reviewable, while excluding only
+# machine-local runtime state, generated logs, credentials and dependency output.
+
+# dependencies / package manager output
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# credentials and local environment
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+
+# workbench runtime state; keep knowledge catalog/items because they are curated inputs
+.workbench/run-history.jsonl
+.workbench/tmp/
+.workbench/sessions/
+.workbench/uploads/
+.workbench/**/*.log
+!.workbench/knowledge/
+!.workbench/knowledge/**
+
+# OMX runtime logs/state; keep durable plans/context docs if intentionally added
+.omx/logs/
+.omx/state/
+.omx/metrics.json
+.omx/tmux-hook.json
+.omx/**/workers/
+
+# test / coverage / build artifacts
+coverage/
+.nyc_output/
+dist/
+build/
+.cache/
+.tmp/
+tmp/
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.vscode/
+.idea/

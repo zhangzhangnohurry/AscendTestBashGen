@@ -1,0 +1,21 @@
+{
+  "visual_verdict": {
+    "score": 86,
+    "verdict": "revise",
+    "category_match": true,
+    "reference_image": "/home/ttelab/.codex/generated_images/019e4ab5-18bc-7330-81c9-252973245ab3/ig_09e35ad266d21975016a0f0a4667d48191a9f3f6b8efc33823.png",
+    "generated_screenshot": "/tmp/ascend-cw-ui.png",
+    "differences": [
+      "Current screenshot is the empty configured state, so row-level command/validation cards and modal cannot be fully compared until an extraction adapter returns items.",
+      "Overall layout now matches the reference category: top status bar, left raw text, center workbench, right console/log panels.",
+      "Right-side panel still shows an internal scrollbar in the captured viewport."
+    ],
+    "suggestions": [
+      "After connecting an extraction adapter, run a populated screenshot comparison for row density, badge placement, and skill modal fidelity.",
+      "If desired, tune right panel heights to avoid internal scroll in the default empty state."
+    ],
+    "reasoning": "The structure and visual language have been brought close to the reference, but a populated-state screenshot is required for a strict 90+ pass because adapter-driven extraction is currently unconfigured."
+  },
+  "threshold": 90,
+  "passed": false
+}

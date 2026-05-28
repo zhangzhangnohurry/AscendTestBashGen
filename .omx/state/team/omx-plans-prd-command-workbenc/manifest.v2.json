@@ -1,0 +1,59 @@
+{
+  "schema_version": 2,
+  "name": "omx-plans-prd-command-workbenc",
+  "task": ".omx/plans/prd-command-workbench-20260521T135429Z.md",
+  "leader": {
+    "session_id": "",
+    "worker_id": "leader-fixed",
+    "role": "coordinator"
+  },
+  "policy": {
+    "worker_launch_mode": "interactive",
+    "display_mode": "split_pane",
+    "dispatch_mode": "hook_preferred_with_fallback",
+    "dispatch_ack_timeout_ms": 2000
+  },
+  "governance": {
+    "delegation_only": false,
+    "plan_approval_required": false,
+    "nested_teams_allowed": false,
+    "one_team_per_leader_session": true,
+    "cleanup_requires_all_workers_inactive": true
+  },
+  "lifecycle_profile": "default",
+  "permissions_snapshot": {
+    "approval_mode": "unknown",
+    "sandbox_mode": "unknown",
+    "network_access": true
+  },
+  "tmux_session": "omc-ascendtestbyclaude-detached-20260521132532:0",
+  "worker_count": 1,
+  "workers": [
+    {
+      "name": "worker-1",
+      "index": 1,
+      "role": "team-executor",
+      "assigned_tasks": [
+        "1"
+      ],
+      "pane_id": "%1",
+      "pid": 831673,
+      "worker_cli": "codex",
+      "working_dir": "/home/ttelab/Documents/code/ascendTest",
+      "team_state_root": "/home/ttelab/Documents/code/ascendTest/.omx/state"
+    }
+  ],
+  "next_task_id": 1,
+  "created_at": "2026-05-21T23:45:44.316Z",
+  "leader_cwd": "/home/ttelab/Documents/code/ascendTest",
+  "team_state_root": "/home/ttelab/Documents/code/ascendTest/.omx/state",
+  "workspace_mode": "single",
+  "worktree_mode": {
+    "enabled": false
+  },
+  "leader_pane_id": "%0",
+  "hud_pane_id": "%2",
+  "resize_hook_name": "omx_resize_omx-plans-prd-command-workbenc_omc-ascendtestbyclaude-detached-20260521132532_0_2",
+  "resize_hook_target": "omc-ascendtestbyclaude-detached-20260521132532:0",
+  "next_worker_index": 2
+}

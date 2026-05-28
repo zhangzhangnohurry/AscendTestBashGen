@@ -1,0 +1,16 @@
+{
+  "team_name": "omx-plans-prd-command-workbenc",
+  "updated_at": "2026-05-21T23:48:59.053Z",
+  "source": "notify_hook",
+  "leader_decision_state": "done_waiting_on_leader",
+  "leader_attention_pending": false,
+  "leader_attention_reason": null,
+  "attention_reasons": [],
+  "leader_stale": false,
+  "leader_session_active": true,
+  "leader_session_id": "019e4cee-485f-7de3-9887-c9cf809ba00b",
+  "leader_session_stopped_at": null,
+  "unread_leader_message_count": 4,
+  "work_remaining": false,
+  "stalled_for_ms": null
+}

@@ -1,0 +1,224 @@
+{
+  "version": 1,
+  "items": [
+    {
+      "id": "sample-switch-user-su",
+      "title": "样例：切换用户使用 su",
+      "summary": "当原文表达需要切换到某个用户时，生成显式的 su $user 上下文切换动作，例如切换 testuser 则使用 su testuser。",
+      "path": "items/sample-switch-user-su.md",
+      "enabled": true,
+      "phases": [
+        "decompose",
+        "generate"
+      ],
+      "strength": "must",
+      "isDeviceShell": true
+    },
+    {
+      "id": "huawei-hccn-global-discovery",
+      "title": "Huawei hccn_tool 全局使用与设备发现",
+      "summary": "hccn_tool 帮助、安装/容器/串行约束、NPU/端口/UDMA/EID 发现、互连状态、vNIC、版本和 Device 进程输出校验线索。",
+      "path": "items/huawei-hccn-global-discovery.md",
+      "enabled": true,
+      "phases": [
+        "decompose",
+        "generate",
+        "validate"
+      ],
+      "strength": "must",
+      "isDeviceShell": null
+    },
+    {
+      "id": "huawei-hccn-port-link-state",
+      "title": "Huawei hccn_tool 端口链路状态与建链诊断",
+      "summary": "端口 link、port_info、速率、SerDes、FEC、历史建链、历史 link、link down 数据的输出字段和通过/失败判定线索。",
+      "path": "items/huawei-hccn-port-link-state.md",
+      "enabled": true,
+      "phases": [
+        "decompose",
+        "generate",
+        "validate"
+      ],
+      "strength": "must",
+      "isDeviceShell": null
+    },
+    {
+      "id": "huawei-hccn-bandwidth-statistics-errors",
+      "title": "Huawei hccn_tool 端口带宽、统计、信用证与误码",
+      "summary": "实时/峰值带宽、端口统计、误码、信用证、SU 误码模式/结果的回显字段、参数范围和校验线索。",
+      "path": "items/huawei-hccn-bandwidth-statistics-errors.md",
+      "enabled": true,
+      "phases": [
+        "decompose",
+        "generate",
+        "validate"
+      ],
+      "strength": "must",
+      "isDeviceShell": null
+    },
+    {
+      "id": "huawei-hccn-network-resource-context",
+      "title": "Huawei hccn_tool 网络设备 context 与队列资源",
+      "summary": "UDMA 网络设备 AEQ/CEQ context、队列资源列表和资源属性查询的参数缺口、输出字段和校验线索。",
+      "path": "items/huawei-hccn-network-resource-context.md",
+      "enabled": true,
+      "phases": [
+        "decompose",
+        "generate",
+        "validate"
+      ],
+      "strength": "should",
+      "isDeviceShell": null
+    },
+    {
+      "id": "huawei-hccn-tls-config-recovery",
+      "title": "Huawei hccn_tool TLS 证书与配置恢复",
+      "summary": "TLS 查询/替换/开关/告警阈值/清除证书、配置恢复查询与恢复操作的回显字段、风险和校验线索。",
+      "path": "items/huawei-hccn-tls-config-recovery.md",
+      "enabled": true,
+      "phases": [
+        "decompose",
+        "generate",
+        "validate"
+      ],
+      "strength": "must",
+      "isDeviceShell": null
+    },
+    {
+      "id": "huawei-hccn-destructive-test-ops",
+      "title": "Huawei hccn_tool 清除、升 lane 与测试类操作",
+      "summary": "清除统计、升 lane、清除 SU 误码、寄存器导出、SU 误码模式、UB ping 等有副作用/测试操作的输出校验和风险约束。",
+      "path": "items/huawei-hccn-destructive-test-ops.md",
+      "enabled": true,
+      "phases": [
+        "decompose",
+        "generate",
+        "validate"
+      ],
+      "strength": "must",
+      "isDeviceShell": null
+    },
+    {
+      "id": "huawei-hccn-coverage",
+      "title": "Huawei hccn_tool 拆分覆盖报告",
+      "summary": "EDOC1100569784 每个 partNo/命令标题到拆分知识项的覆盖映射，用于审计，不参与默认检索。",
+      "path": "items/huawei-hccn-coverage.md",
+      "enabled": false,
+      "phases": [
+        "decompose"
+      ],
+      "strength": "should",
+      "isDeviceShell": null
+    },
+    {
+      "id": "huawei-npu-smi-global-discovery",
+      "title": "Huawei npu-smi 全局规则与发现命令",
+      "summary": "npu-smi 串行约束、Ascend 950 dev_id 规则、帮助/版本、基本信息、设备枚举和映射输出字段。",
+      "path": "items/huawei-npu-smi-global-discovery.md",
+      "enabled": true,
+      "phases": [
+        "decompose",
+        "generate",
+        "validate"
+      ],
+      "strength": "must",
+      "isDeviceShell": null
+    },
+    {
+      "id": "huawei-npu-smi-info-health-telemetry-output",
+      "title": "Huawei npu-smi 设备信息、健康与遥测输出",
+      "summary": "板卡详情、常用信息、闪存/内存、watch、使用率、温度、功率、电压、健康、传感器和系统时间的输出校验字段。",
+      "path": "items/huawei-npu-smi-info-health-telemetry-output.md",
+      "enabled": true,
+      "phases": [
+        "decompose",
+        "generate",
+        "validate"
+      ],
+      "strength": "must",
+      "isDeviceShell": null
+    },
+    {
+      "id": "huawei-npu-smi-ecc-fault-output",
+      "title": "Huawei npu-smi ECC、故障事件与链路误码输出",
+      "summary": "当前故障事件、ECC 计数、ECC 使能状态、PCIe 误码输出字段，以及 ECC 清除/上下电相关语义分流约束。",
+      "path": "items/huawei-npu-smi-ecc-fault-output.md",
+      "enabled": true,
+      "phases": [
+        "decompose",
+        "generate",
+        "validate"
+      ],
+      "strength": "must",
+      "isDeviceShell": null
+    },
+    {
+      "id": "huawei-npu-smi-syslog-process-topology-output",
+      "title": "Huawei npu-smi syslog、进程、物理映射与拓扑输出",
+      "summary": "KMSAgent 状态、进程内存、物理 ID 映射、多 NPU 拓扑、超节点、SIO、syslog 配置与日志落盘容量约束。",
+      "path": "items/huawei-npu-smi-syslog-process-topology-output.md",
+      "enabled": true,
+      "phases": [
+        "decompose",
+        "generate",
+        "validate"
+      ],
+      "strength": "must",
+      "isDeviceShell": null
+    },
+    {
+      "id": "huawei-npu-smi-set-reset-clear-risk",
+      "title": "Huawei npu-smi set/reset/clear 风险变更命令",
+      "summary": "复位 NPU、清除 ECC、KMSAgent 服务状态、set/clear 帮助等变更类命令的风险、输出字段和维护阶段约束。",
+      "path": "items/huawei-npu-smi-set-reset-clear-risk.md",
+      "enabled": true,
+      "phases": [
+        "decompose",
+        "generate",
+        "validate"
+      ],
+      "strength": "must",
+      "isDeviceShell": null
+    },
+    {
+      "id": "huawei-npu-smi-firmware-upgrade",
+      "title": "Huawei npu-smi 固件版本查询与升级",
+      "summary": "upgrade 帮助、VRD 固件版本查询、固件升级输出字段、文件路径限制、非并发升级和升级后 reboot/上下电步骤。",
+      "path": "items/huawei-npu-smi-firmware-upgrade.md",
+      "enabled": true,
+      "phases": [
+        "decompose",
+        "generate",
+        "validate"
+      ],
+      "strength": "must",
+      "isDeviceShell": null
+    },
+    {
+      "id": "huawei-npu-smi-tls-certificate",
+      "title": "Huawei npu-smi TLS 证书管理",
+      "summary": "TLS CSR 获取、证书导入、证书信息查询、过期阈值查询/设置/恢复的输出字段和参数约束。",
+      "path": "items/huawei-npu-smi-tls-certificate.md",
+      "enabled": true,
+      "phases": [
+        "decompose",
+        "generate",
+        "validate"
+      ],
+      "strength": "must",
+      "isDeviceShell": null
+    },
+    {
+      "id": "huawei-npu-smi-coverage",
+      "title": "Huawei npu-smi 拆分覆盖报告",
+      "summary": "EDOC1100569818 catalogue 每个 partNo/命令标题到拆分知识项的覆盖映射，用于审计，不参与默认检索。",
+      "path": "items/huawei-npu-smi-coverage.md",
+      "enabled": false,
+      "phases": [
+        "decompose"
+      ],
+      "strength": "should",
+      "isDeviceShell": null
+    }
+  ]
+}

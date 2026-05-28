@@ -1,0 +1,10 @@
+{
+  "session_id": "019e5f66-1eef-7d50-9c3e-d8718461aa2b",
+  "native_session_id": "019e5f66-1eef-7d50-9c3e-d8718461aa2b",
+  "started_at": "2026-05-25T13:49:54.852Z",
+  "cwd": "/home/ttelab/Documents/code/ascendTest",
+  "pid": 8729,
+  "platform": "linux",
+  "pid_start_ticks": 119769,
+  "pid_cmdline": "/home/ttelab/.vscode/extensions/openai.chatgpt-26.513.21555-linux-x64/bin/linux-x86_64/codex app-server --analytics-default-enabled"
+}

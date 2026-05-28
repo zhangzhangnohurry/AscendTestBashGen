@@ -1,0 +1,15 @@
+{
+  "active": false,
+  "mode": "team",
+  "current_phase": "complete",
+  "started_at": "2026-05-21T23:44:08.577Z",
+  "updated_at": "2026-05-21T23:44:08.577Z",
+  "session_id": "omx-1779369839316-5arx1p",
+  "thread_id": "019e4ab5-18bc-7330-81c9-252973245ab3",
+  "turn_id": "019e4cec-6516-7d31-8f5a-d7775372c175",
+  "completed_at": "2026-05-21T23:48:59.958Z",
+  "team_name": "omx-plans-prd-command-workbenc",
+  "run_outcome": "finish",
+  "lifecycle_outcome": "finished",
+  "last_turn_at": "2026-05-25T03:39:10.022Z"
+}

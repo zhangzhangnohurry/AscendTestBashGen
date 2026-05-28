@@ -1,0 +1,13 @@
+{
+  "active": false,
+  "mode": "team",
+  "current_phase": "cancelled",
+  "started_at": "2026-05-21T23:44:08.577Z",
+  "updated_at": "2026-05-22T07:30:23.902Z",
+  "session_id": "omx-1779408444064-cniop3",
+  "thread_id": "019e4ab5-18bc-7330-81c9-252973245ab3",
+  "turn_id": "019e4e97-ada2-7d73-a6aa-164721975d77",
+  "completed_at": "2026-05-25T03:39:10.054Z",
+  "tmux_pane_id": "%7",
+  "tmux_pane_set_at": "2026-05-22T07:30:23.902Z"
+}

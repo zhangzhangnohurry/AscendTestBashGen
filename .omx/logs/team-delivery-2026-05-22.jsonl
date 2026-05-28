@@ -1,0 +1,1 @@
+{"timestamp":"2026-05-22T00:08:31.412Z","kind":"team_delivery","event":"delivered","source":"team.state.mailbox","team":"omx-plans-prd-command-workbenc","message_id":"8f4264bb-2ec4-4edc-ae16-1def862014c6","to_worker":"leader-fixed","transport":"legacy-json","result":"updated"}
