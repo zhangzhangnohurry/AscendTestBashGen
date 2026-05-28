@@ -2,10 +2,8 @@ import { exportReadiness } from '../domain/state.js';
 
 /**
  * Converts reviewed workbench items into a standalone bash script.
- * The exporter intentionally treats setup/precondition items and test-step items
- * the same way: each item runs its command once, validates the captured output,
- * and fails the whole script on the first error. There is no separate
- * "precondition satisfied" decision path anymore.
+ * Each reviewed step runs its command once, validates the captured output, and
+ * fails the whole script on the first error.
  */
 
 export function generateStandaloneScript(items, config = {}) {

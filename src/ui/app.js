@@ -7,10 +7,15 @@ let currentGaps = [];
 let gapCursor = -1;
 let interactionLogs = [];
 let worklogLines = [];
+let waitLogTimers = [];
+let activeTraceId = null;
 const $ = (id) => document.getElementById(id);
 const UI_PROVIDERS = new Set(['disabled', 'local-claude', 'local-codex', 'llm-api']);
+const DEFAULT_ADAPTER_TIMEOUT_MS = 600000;
 
-$('parseBtn').addEventListener('click', parseText);
+$('parseBtn').addEventListener('click', splitText);
+$('calibrateBtn').addEventListener('click', calibrateStructure);
+$('generateBtn').addEventListener('click', generateDrafts);
 $('downloadBtn').addEventListener('click', downloadScript);
 $('nextGapBtn').addEventListener('click', jumpToNextGap);
 $('menuBtn').addEventListener('click', toggleRawPanel);
@@ -55,7 +60,7 @@ function loadSettings() {
   $('customHttpUrl').value = saved.url || '';
   $('adapterModel').value = saved.model || '';
   $('adapterApiModel').value = saved.model || '';
-  $('adapterTimeout').value = String(saved.timeoutMs || 30000);
+  $('adapterTimeout').value = String(DEFAULT_ADAPTER_TIMEOUT_MS);
   $('adapterApiKey').value = saved.apiKey || '';
   $('customHttpApiKey').value = saved.apiKey || '';
   $('customHttpApiKeyHeader').value = saved.apiKeyHeader || 'Authorization';
@@ -95,7 +100,7 @@ function getAdapterConfig() {
 
 function getAdapterConfigFromForm() {
   const provider = $('adapterProvider').value;
-  const base = { provider, timeoutMs: Number($('adapterTimeout').value || 30000) };
+  const base = { provider, timeoutMs: DEFAULT_ADAPTER_TIMEOUT_MS };
   if (provider === 'local-claude' || provider === 'local-codex') {
     return { ...base, model: $('adapterModel').value.trim(), command: $('adapterCommand').value.trim() };
   }
@@ -139,56 +144,111 @@ async function loadHealth() {
 }
 
 /**
- * parseText runs the two-stage model workflow: first decompose the source
- * document, then generate commands/validations one item at a time so progress
- * is visible and failed items do not hide earlier results.
+ * Stage 1: local deterministic section split. This runs before any LLM call so
+ * users can review/adjust the ordered S-list and choose whether LLM calibration
+ * is needed.
  */
-async function parseText() {
+async function splitText() {
   $('parseBtn').disabled = true;
   items = [];
   currentGaps = [];
   gapCursor = -1;
   interactionLogs = [];
   worklogLines = [];
+  activeTraceId = createTraceId();
   renderCards();
   renderWorklog([]);
   updateGapSummary([]);
   resetPipeline();
   try {
-    setPipelineStep('pipelineDecompose', 'running', '文档拆解中：提取预制条件和测试步骤原文...');
-    appendLog('文档拆解中...');
-    const decomposed = await api('/api/decompose', { text: $('rawText').value, adapterConfig: getAdapterConfig() });
+    $('calibrateBtn').classList.add('hidden');
+    $('generateBtn').classList.add('hidden');
+    setPipelineStep('pipelineDecompose', 'running', '章节拆分中：读取 S 编号结构...');
+    appendLog('章节拆分中：基于显式 S 编号拆分原文，不调用 LLM。');
+    const decomposed = await api('/api/structure/split', { text: $('rawText').value });
+    items = decomposed.items || [];
+    renderWorklog(decomposed.worklog || []);
+    renderCards();
+    setPipelineStep('pipelineDecompose', 'done', `完成：${items.length} 个步骤`);
+    setPipelineStep('pipelineCalibrate', 'idle', '可选：用户确认是否需要 LLM 校准');
+    setPipelineStep('pipelineGenerate', 'idle', '等待用户确认后生成');
+    $('calibrateBtn').classList.remove('hidden');
+    $('generateBtn').classList.remove('hidden');
+    appendLog('请在中间列表调整原文/判断原文；可选择 LLM 校准，或直接确认生成脚本。');
+    await checkExport();
+  } catch (error) {
+    setPipelineStep('pipelineDecompose', 'error', error.message || String(error));
+    appendLog(`章节拆分失败：${error.message || error}`);
+  } finally {
+    $('parseBtn').disabled = false;
+  }
+}
+
+async function calibrateStructure() {
+  if (!items.length) return;
+  $('calibrateBtn').disabled = true;
+  activeTraceId = createTraceId();
+  try {
+    setPipelineStep('pipelineCalibrate', 'running', 'LLM 校准中：仅调整步骤边界/顺序...');
+    appendLog('LLM 校准中：不会生成脚本，只输出 step 条目。');
+    const decomposed = await withWaitingLog(
+      'LLM 校准中：LLM/CLI 仍在处理',
+      () => api('/api/decompose', { text: $('rawText').value, items, adapterConfig: getAdapterConfig(), traceId: activeTraceId })
+    );
     addInteractions(decomposed.interactionLog);
     items = decomposed.items || [];
     renderWorklog(decomposed.worklog || []);
     renderCards();
-    setPipelineStep('pipelineDecompose', 'done', `完成：${countByType('precondition')} 个预制条件，${items.length - countByType('precondition')} 个测试步骤`);
+    setPipelineStep('pipelineCalibrate', 'done', `完成：${items.length} 个步骤`);
     await checkExport();
+  } catch (error) {
+    const receivedLogs = addInteractions(error.payload?.interactionLog);
+    if (!receivedLogs) await refreshRecentInteractions();
+    setPipelineStep('pipelineCalibrate', 'error', error.message || String(error));
+    appendLog(`LLM 校准失败：${error.message || error}`);
+    if (error.payload) appendLog('失败详情：', error.payload);
+  } finally {
+    $('calibrateBtn').disabled = false;
+    activeTraceId = null;
+  }
+}
 
-
+async function generateDrafts() {
+  if (!items.length) return;
+  $('generateBtn').disabled = true;
+  activeTraceId = createTraceId();
+  try {
     setPipelineStep('pipelineGenerate', 'running', `脚本生成中：0/${items.length}`);
     appendLog(`脚本生成中：逐项回填 ${items.length} 个草稿...`);
     for (let index = 0; index < items.length; index += 1) {
       setPipelineStep('pipelineGenerate', 'running', `脚本生成中：${index + 1}/${items.length}`);
-      const result = await api('/api/generate-item', { item: items[index], adapterConfig: getAdapterConfig() });
+      appendLog(`脚本生成中：请求 LLM/CLI 生成 item ${index + 1}/${items.length}...`);
+      const result = await withWaitingLog(
+        `脚本生成中：item ${index + 1}/${items.length} 仍在处理`,
+        () => api('/api/generate-item', { item: items[index], adapterConfig: getAdapterConfig(), config: collectConfig(), traceId: activeTraceId })
+      );
       addInteractions(result.interactionLog);
       items[index] = result.item;
       renderCards();
       await checkExport();
     }
     setPipelineStep('pipelineGenerate', 'done', `完成：已回填 ${items.length} 个草稿`);
-    appendLog('文档拆解和脚本生成完成。');
+    appendLog('脚本生成完成。');
   } catch (error) {
-    const active = $('pipelineDecompose').classList.contains('running') ? 'pipelineDecompose' : 'pipelineGenerate';
-    setPipelineStep(active, 'error', error.message || String(error));
+    const receivedLogs = addInteractions(error.payload?.interactionLog);
+    if (!receivedLogs) await refreshRecentInteractions();
+    setPipelineStep('pipelineGenerate', 'error', error.message || String(error));
     appendLog(`生成失败：${error.message || error}`);
+    if (error.payload) appendLog('失败详情：', error.payload);
   } finally {
-    $('parseBtn').disabled = false;
+    $('generateBtn').disabled = false;
+    activeTraceId = null;
   }
 }
 
 function resetPipeline() {
   setPipelineStep('pipelineDecompose', 'idle', '等待开始');
+  setPipelineStep('pipelineCalibrate', 'idle', '等待用户选择');
   setPipelineStep('pipelineGenerate', 'idle', '等待开始');
 }
 
@@ -198,16 +258,9 @@ function setPipelineStep(id, state, message) {
   element.querySelector('span').textContent = message;
 }
 
-function countByType(type) {
-  return items.filter((item) => item.type === type).length;
-}
-
 function renderCards() {
-  const preconditions = items.filter((item) => item.type === 'precondition');
-  const steps = items.filter((item) => item.type !== 'precondition');
   $('emptyState').classList.toggle('hidden', items.length > 0);
-  renderGroup('preconditionsSection', 'preconditionCards', 'preCount', preconditions);
-  renderGroup('stepsSection', 'stepCards', 'stepCount', steps);
+  renderGroup('stepsSection', 'stepCards', 'stepCount', items);
 }
 
 function renderGroup(sectionId, containerId, countId, groupItems) {
@@ -223,18 +276,29 @@ function renderRow(item) {
   const actualIndex = items.indexOf(item);
   const commandBlocked = item.commandDraft.originalProvenance === 'inferred' && !item.commandDraft.confirmed;
   const row = document.createElement('article');
-  row.className = 'row-card';
+  row.className = `row-card depth-${Math.min(Number(item.depth || 1), 3)}`;
   row.id = `item-${actualIndex}`;
   row.innerHTML = `
-    <div class="row-index">${actualIndex}</div>
-    <div class="row-source">${escapeHtml(item.sourceText || item.intent || '(empty)')}</div>
+    <div class="row-index">${escapeHtml(item.label || `S${actualIndex + 1}`)}</div>
+    <div class="editor-block source-block">
+      <label>原文</label>
+      <textarea data-kind="source" data-index="${actualIndex}">${escapeHtml(item.sourceText || item.intent || '')}</textarea>
+    </div>
+    <div class="reference-block">
+      <label>参考文档</label>
+      ${renderKnowledgeRefs(item.knowledgeRefs)}
+    </div>
     <div class="editor-block">
-      <label>命令草稿（可编辑）</label>
+      <label>生成脚本</label>
       <span class="badge ${escapeHtml(item.commandDraft.provenance)}">${escapeHtml(labelForProvenance(item.commandDraft, commandBlocked))}</span>
       <textarea data-kind="command" data-index="${actualIndex}">${escapeHtml(item.commandDraft.value)}</textarea>
     </div>
     <div class="editor-block">
-      <label>验证脚本（检查 $COMMAND_OUTPUT）</label>
+      <label>判断原文</label>
+      <textarea data-kind="expected" data-index="${actualIndex}">${escapeHtml(item.expected || '')}</textarea>
+    </div>
+    <div class="editor-block">
+      <label>生成判断脚本</label>
       <span class="badge ${escapeHtml(item.validationDraft.provenance || 'blank')}">${escapeHtml(labelForValidation(item.validationDraft))}</span>
       <textarea data-kind="validation" data-index="${actualIndex}" placeholder="例如：grep -q 'expected text' <<< \"$COMMAND_OUTPUT\"">${escapeHtml(item.validationDraft.value || '')}</textarea>
     </div>
@@ -266,7 +330,13 @@ function labelForValidation(draft) {
 function onEdit(event) {
   const index = Number(event.target.dataset.index);
   const item = items[index];
-  if (event.target.dataset.kind === 'command') {
+  if (event.target.dataset.kind === 'source') {
+    item.sourceText = event.target.value;
+    item.intent = event.target.value;
+  } else if (event.target.dataset.kind === 'expected') {
+    item.expected = event.target.value;
+    item.validationDraft.required = Boolean(event.target.value.trim());
+  } else if (event.target.dataset.kind === 'command') {
     item.commandDraft.value = event.target.value;
     item.commandDraft.provenance = 'user_edited';
     item.commandDraft.editState = 'dirty';
@@ -275,6 +345,11 @@ function onEdit(event) {
     item.validationDraft.provenance = 'user_edited';
     item.validationDraft.confirmed = true;
   }
+}
+
+function renderKnowledgeRefs(refs = []) {
+  if (!Array.isArray(refs) || !refs.length) return '<div class="muted-ref">待选择</div>';
+  return `<ul class="knowledge-refs">${refs.map((ref) => `<li title="${escapeHtml(ref.id)}">${escapeHtml(ref.title || ref.id)}</li>`).join('')}</ul>`;
 }
 
 async function onAction(event) {
@@ -396,8 +471,42 @@ function collectConfig() {
 async function api(url, body, tolerateError = false) {
   const response = await fetch(url, body === undefined ? undefined : { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
   const json = await response.json();
-  if (!response.ok && !tolerateError) throw new Error(json.error || JSON.stringify(json));
+  if (!response.ok && !tolerateError) {
+    const error = new Error(json.error || JSON.stringify(json));
+    error.status = response.status;
+    error.payload = json;
+    throw error;
+  }
   return json;
+}
+
+/**
+ * Emits a small heartbeat while a long LLM/CLI request is in flight. The
+ * request itself still owns timeout/cancellation; this only prevents the page
+ * from looking silent when a model spends tens of seconds generating output.
+ */
+async function withWaitingLog(label, task) {
+  stopWaitingLog();
+  const startedAt = Date.now();
+  await refreshRecentInteractions(activeTraceId, false);
+  waitLogTimers.push(setInterval(() => {
+    const elapsedSeconds = Math.round((Date.now() - startedAt) / 1000);
+    appendLog(`${label}，已等待 ${elapsedSeconds}s...`);
+  }, 10000));
+  waitLogTimers.push(setInterval(() => {
+    refreshRecentInteractions(activeTraceId, false);
+  }, 1000));
+  try {
+    return await task();
+  } finally {
+    stopWaitingLog();
+    await refreshRecentInteractions(activeTraceId, false);
+  }
+}
+
+function stopWaitingLog() {
+  for (const timer of waitLogTimers) clearInterval(timer);
+  waitLogTimers = [];
 }
 
 function renderWorklog(lines = undefined) {
@@ -405,19 +514,99 @@ function renderWorklog(lines = undefined) {
   const workItems = worklogLines.map((line) => `<li class="worklog-line">${escapeHtml(line)}</li>`);
   const interactionItems = interactionLogs.map((entry) => `
     <li class="interaction-log">
-      <div><strong>${escapeHtml(entry.task)}</strong> · ${escapeHtml(entry.provider)} · ${escapeHtml(entry.status || 'pending')} · ${Number(entry.durationMs || 0)}ms</div>
+      <div><strong>${escapeHtml(entry.task)}</strong> · ${escapeHtml(providerLabel(entry.provider))} · ${escapeHtml(entry.status || 'pending')} · ${Number(entry.durationMs || 0)}ms</div>
+      ${renderConversation(entry)}
       <details>
-        <summary>查看请求/响应</summary>
+        <summary>完整 trace JSON</summary>
         <pre>${escapeHtml(JSON.stringify(entry, null, 2))}</pre>
       </details>
     </li>`);
   $('worklog').innerHTML = workItems.concat(interactionItems).join('');
 }
 
+function renderConversation(entry) {
+  const conversation = Array.isArray(entry.conversation) ? entry.conversation : fallbackConversation(entry);
+  if (!conversation.length) return '';
+  return `
+    <div class="conversation">
+      ${conversation.map((message) => `
+        <details class="conversation-turn" ${message.role === 'assistant' || message.role === 'stdout' ? '' : 'open'}>
+          <summary>${escapeHtml(conversationLabel(entry, message.role))}</summary>
+          <pre>${escapeHtml(message.content || '')}</pre>
+        </details>`).join('')}
+    </div>`;
+}
+
+function fallbackConversation(entry) {
+  const turns = [];
+  if (Array.isArray(entry.httpRequest?.messages)) {
+    turns.push(...entry.httpRequest.messages.map((message) => ({ role: message.role, content: message.content })));
+  } else if (entry.prompt) {
+    turns.push({ role: 'stdin', content: entry.prompt });
+  } else if (entry.stdin) {
+    turns.push({ role: 'stdin', content: entry.stdin });
+  }
+  if (entry.modelOutput) turns.push({ role: 'assistant', content: entry.modelOutput });
+  if (entry.stdout) turns.push({ role: 'stdout', content: entry.stdout });
+  if (entry.stderr) turns.push({ role: 'stderr', content: entry.stderr });
+  if (entry.httpResponseText && !entry.modelOutput) turns.push({ role: 'http-response', content: entry.httpResponseText });
+  return turns;
+}
+
+function conversationLabel(entry, role) {
+  const provider = entry.provider || '';
+  const labels = {
+    system: 'LLM API system message',
+    user: 'LLM API user message',
+    assistant: 'LLM API assistant response',
+    stdin: provider.startsWith('local-') ? 'CLI stdin prompt' : 'Adapter stdin JSON',
+    stdout: provider.startsWith('local-') ? 'CLI stdout' : 'Adapter stdout',
+    stderr: provider.startsWith('local-') ? 'CLI stderr' : 'Adapter stderr',
+    'http-response': 'HTTP response body'
+  };
+  return labels[role] || role;
+}
+
 function addInteractions(entries = []) {
-  if (!Array.isArray(entries) || !entries.length) return;
-  interactionLogs.push(...entries.map(redactSecrets));
+  if (!Array.isArray(entries) || !entries.length) return 0;
+  let changed = 0;
+  let created = 0;
+  for (const rawEntry of entries) {
+    const entry = redactSecrets(rawEntry);
+    const index = entry.id ? interactionLogs.findIndex((item) => item.id === entry.id) : -1;
+    if (index >= 0) {
+      const merged = { ...interactionLogs[index], ...entry };
+      if (JSON.stringify(merged) !== JSON.stringify(interactionLogs[index])) {
+        interactionLogs[index] = merged;
+        changed += 1;
+      }
+    } else {
+      interactionLogs.push(entry);
+      created += 1;
+      changed += 1;
+    }
+  }
+  if (!changed) return 0;
   renderWorklog();
+  if (created) appendLog(`已实时记录模型/CLI 交互 ${created} 条。`);
+  return changed;
+}
+
+async function refreshRecentInteractions(traceId = activeTraceId, logEmpty = true) {
+  try {
+    const suffix = traceId ? `?traceId=${encodeURIComponent(traceId)}` : '';
+    const result = await api(`/api/interactions/recent${suffix}`, undefined, true);
+    const count = addInteractions(result.interactions || []);
+    if (!count && logEmpty) appendLog('未从服务端最近记录中找到新的模型/CLI 交互。');
+    return count;
+  } catch (error) {
+    appendLog(`读取服务端模型/CLI 最近记录失败：${error.message || error}`);
+    return 0;
+  }
+}
+
+function createTraceId() {
+  return `ui-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
 function updateGapSummary(gaps = []) {

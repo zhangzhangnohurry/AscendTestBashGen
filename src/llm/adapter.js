@@ -5,6 +5,7 @@ import { redactSecrets } from '../security/redact.js';
 const DIRECT_PROVIDERS = new Set(['local-claude', 'local-codex', 'llm-api']);
 const CUSTOM_CLI_PROVIDERS = new Set(['cli', 'custom-cli']);
 const CUSTOM_HTTP_PROVIDERS = new Set(['http', 'custom-http']);
+export const DEFAULT_ADAPTER_TIMEOUT_MS = 600000;
 
 /**
  * Reads default adapter settings from environment variables. Per-request UI
@@ -17,7 +18,7 @@ export function loadAdapterConfig(env = process.env) {
     command: env.WORKBENCH_LLM_COMMAND || '',
     url: env.WORKBENCH_LLM_URL || '',
     model: env.WORKBENCH_LLM_MODEL || '',
-    timeoutMs: Number(env.WORKBENCH_LLM_TIMEOUT_MS || 30000),
+    timeoutMs: Number(env.WORKBENCH_LLM_TIMEOUT_MS || DEFAULT_ADAPTER_TIMEOUT_MS),
     apiKey: env.WORKBENCH_LLM_API_KEY || '',
     apiKeyHeader: env.WORKBENCH_LLM_API_KEY_HEADER || 'Authorization',
     apiKeyPrefix: env.WORKBENCH_LLM_API_KEY_PREFIX || 'Bearer'
@@ -33,6 +34,7 @@ export class ConfigurableAdapter {
   constructor(config = loadAdapterConfig(), options = {}) {
     this.config = { ...config, provider: (config.provider || 'disabled').toLowerCase() };
     this.trace = options.trace || [];
+    this.onTraceUpdate = typeof options.onTraceUpdate === 'function' ? options.onTraceUpdate : () => {};
   }
 
   async health() {
@@ -113,16 +115,21 @@ export class ConfigurableAdapter {
       at: new Date().toISOString(),
       provider,
       task: payload.task,
+      status: 'pending',
       request: redactSecrets(summarizePayload(payload))
     };
     const started = Date.now();
+    this.trace.push(entry);
     try {
       let result;
-      if (CUSTOM_CLI_PROVIDERS.has(provider)) result = await callCustomCli(this.config, payload, entry);
-      else if (CUSTOM_HTTP_PROVIDERS.has(provider)) result = await callCustomHttp(this.config, payload, entry);
-      else if (provider === 'local-claude' || provider === 'local-codex') result = await callLocalModelCli(this.config, payload, entry);
-      else if (provider === 'llm-api') result = await callLlmApi(this.config, payload, entry);
+      let operation;
+      if (CUSTOM_CLI_PROVIDERS.has(provider)) operation = callCustomCli(this.config, payload, entry);
+      else if (CUSTOM_HTTP_PROVIDERS.has(provider)) operation = callCustomHttp(this.config, payload, entry);
+      else if (provider === 'local-claude' || provider === 'local-codex') operation = callLocalModelCli(this.config, payload, entry);
+      else if (provider === 'llm-api') operation = callLlmApi(this.config, payload, entry);
       else throw new Error('LLM provider is not configured');
+      this.#notifyTrace(entry, started);
+      result = await operation;
       entry.status = 'ok';
       entry.response = redactSecrets(summarizeResponse(result));
       return result;
@@ -132,32 +139,41 @@ export class ConfigurableAdapter {
       throw error;
     } finally {
       entry.durationMs = Date.now() - started;
-      this.trace.push(entry);
+      this.#notifyTrace(entry, started);
     }
+  }
+
+  #notifyTrace(entry, started) {
+    entry.durationMs = Date.now() - started;
+    this.onTraceUpdate(redactSecrets({ ...entry }));
   }
 }
 
 async function callCustomCli(config, payload, trace) {
   return new Promise((resolve, reject) => {
+    const timeoutMs = effectiveTimeoutMs(config);
     trace.transport = { type: 'custom-cli', command: config.command };
     trace.stdin = limitText(JSON.stringify(payload, null, 2), 4000);
+    trace.conversation = [{ role: 'stdin', content: trace.stdin }];
     const child = spawn(config.command, [], { shell: true, stdio: ['pipe', 'pipe', 'pipe'] });
     let stdout = '';
     let stderr = '';
     const timer = setTimeout(() => {
       child.kill('SIGTERM');
-      reject(new Error(`CLI adapter timed out after ${config.timeoutMs}ms`));
-    }, config.timeoutMs);
+      reject(new Error(`CLI adapter timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
     child.stdout.on('data', (chunk) => { stdout += chunk.toString(); });
     child.stderr.on('data', (chunk) => { stderr += chunk.toString(); });
     child.on('error', (error) => { clearTimeout(timer); reject(error); });
     child.on('close', (code) => {
       clearTimeout(timer);
+      trace.stdout = limitText(stdout, 4000);
+      if (stderr.trim()) trace.stderr = limitText(stderr, 1000);
+      if (trace.stdout) trace.conversation.push({ role: 'stdout', content: trace.stdout });
+      if (trace.stderr) trace.conversation.push({ role: 'stderr', content: trace.stderr });
       if (code !== 0) return reject(new Error(`CLI adapter exited ${code}: ${stderr.trim()}`));
       try {
         const parsed = stdout.trim() ? JSON.parse(stdout) : {};
-        trace.stdout = limitText(stdout, 4000);
-        if (stderr.trim()) trace.stderr = limitText(stderr, 1000);
         resolve({ provider: config.provider, configured: true, ok: parsed.ok !== false, ...parsed });
       } catch {
         reject(new Error(`CLI adapter returned non-JSON output: ${stdout.slice(0, 200)}`));
@@ -170,7 +186,7 @@ async function callCustomCli(config, payload, trace) {
 async function callCustomHttp(config, payload, trace) {
   trace.transport = { type: 'custom-http', url: config.url };
   trace.httpRequest = { url: config.url, body: summarizePayload(payload) };
-  const response = await postJson(config.url, payload, httpHeaders(config), config.timeoutMs, trace);
+  const response = await postJson(config.url, payload, httpHeaders(config), effectiveTimeoutMs(config), trace);
   return { provider: config.provider, configured: true, ok: response.ok !== false, ...response };
 }
 
@@ -181,8 +197,10 @@ async function callLocalModelCli(config, payload, trace) {
   const command = localInvocation(config);
   trace.transport = { type: 'local-cli', command };
   trace.prompt = limitText(prompt, 8000);
-  const stdout = await runModelCommand(command, prompt, config.timeoutMs || 30000);
+  trace.conversation = [{ role: 'stdin', content: trace.prompt }];
+  const stdout = await runModelCommand(command, prompt, effectiveTimeoutMs(config), trace);
   trace.stdout = limitText(stdout, 8000);
+  trace.conversation.push({ role: 'stdout', content: trace.stdout });
   const parsed = extractJson(stdout);
   return { provider: config.provider, configured: true, ok: parsed.ok !== false, ...parsed };
 }
@@ -202,9 +220,11 @@ async function callLlmApi(config, payload, trace) {
   trace.transport = { type: 'llm-api', url, model: config.model };
   trace.prompt = limitText(prompt, 8000);
   trace.httpRequest = { url, model: config.model, temperature: 0, messages: body.messages };
-  const response = await postJson(url, body, httpHeaders(config), config.timeoutMs || 30000, trace);
+  trace.conversation = body.messages.map((message) => ({ role: message.role, content: limitText(message.content, 8000) }));
+  const response = await postJson(url, body, httpHeaders(config), effectiveTimeoutMs(config), trace);
   const content = response.choices?.[0]?.message?.content ?? response.output_text ?? response.text ?? JSON.stringify(response);
   trace.modelOutput = limitText(content, 8000);
+  trace.conversation.push({ role: 'assistant', content: trace.modelOutput });
   const parsed = extractJson(content);
   return { provider: 'llm-api', configured: true, ok: parsed.ok !== false, ...parsed };
 }
@@ -234,9 +254,17 @@ async function localCliHealth(provider, command) {
   }
 }
 
-async function runModelCommand(command, prompt, timeoutMs) {
+async function runModelCommand(command, prompt, timeoutMs, trace) {
   const result = await runShell(command, prompt, timeoutMs);
-  if (result.code !== 0) throw new Error(`${command} exited ${result.code}: ${result.stderr.trim()}`);
+  if (result.code !== 0) {
+    if (trace) {
+      trace.stdout = limitText(result.stdout, 8000);
+      trace.stderr = limitText(result.stderr, 2000);
+      if (trace.stdout) trace.conversation.push({ role: 'stdout', content: trace.stdout });
+      if (trace.stderr) trace.conversation.push({ role: 'stderr', content: trace.stderr });
+    }
+    throw new Error(`${command} exited ${result.code}: ${result.stderr.trim()}`);
+  }
   return result.stdout;
 }
 
@@ -269,6 +297,13 @@ async function postJson(url, body, headers, timeoutMs, trace) {
     if (text) json = JSON.parse(text);
     if (!response.ok) throw new Error(`HTTP ${response.status}: ${text.slice(0, 200)}`);
     return json;
+  } catch (error) {
+    if (controller.signal.aborted || error?.name === 'AbortError') {
+      if (trace) trace.httpError = `timeout after ${timeoutMs}ms`;
+      throw new Error(`LLM/API request timed out after ${timeoutMs}ms. 这是统一的 10 分钟模型调用超时时间，说明模型/API 在该时间内没有返回。`);
+    }
+    if (trace) trace.httpError = limitText(error.message || String(error), 8000);
+    throw error;
   } finally {
     clearTimeout(timer);
   }
@@ -297,6 +332,10 @@ function missingApiFields(config) {
   if (!config.apiKey) missing.push('apiKey');
   if (!config.model) missing.push('model');
   return missing;
+}
+
+function effectiveTimeoutMs(config) {
+  return DEFAULT_ADAPTER_TIMEOUT_MS;
 }
 
 function extractJson(text) {

@@ -6,11 +6,6 @@ export const COMMAND_PROVENANCE = Object.freeze({
   USER_EDITED: 'user_edited'
 });
 
-export const ITEM_TYPE = Object.freeze({
-  PRECONDITION: 'precondition',
-  STEP: 'step'
-});
-
 export const TARGET = Object.freeze({
   LOCAL: 'local',
   HOST: 'host',

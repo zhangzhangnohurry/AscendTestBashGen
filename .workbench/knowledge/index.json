@@ -15,6 +15,18 @@
       "isDeviceShell": true
     },
     {
+      "id": "sample-ssh-login-physical-host",
+      "title": "样例：登录物理机使用 SSH",
+      "summary": "当原文表达登录物理机器、宿主机或 host 侧，尤其是 root 用户登录物理机器时，生成 ssh <user>@<execution.remote.host>；主机来自远程配置上下文，用户优先取原文明确用户，否则取 execution.remote.username。",
+      "path": "items/sample-ssh-login-physical-host.md",
+      "enabled": true,
+      "phases": [
+        "generate"
+      ],
+      "strength": "must",
+      "isDeviceShell": false
+    },
+    {
       "id": "huawei-hccn-global-discovery",
       "title": "Huawei hccn_tool 全局使用与设备发现",
       "summary": "hccn_tool 帮助、安装/容器/串行约束、NPU/端口/UDMA/EID 发现、互连状态、vNIC、版本和 Device 进程输出校验线索。",

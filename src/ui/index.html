@@ -21,9 +21,12 @@
     <section id="rawPanel" class="panel raw-panel">
       <div class="panel-title"><h2>原始用例文本</h2><button id="copyRawBtn" class="icon ghost" title="复制原文">⧉</button></div>
       <textarea id="rawText" spellcheck="false" placeholder="粘贴原始测试用例文本。未配置 LLM/CLI 时，系统不会解析或推断命令。"></textarea>
-      <button id="parseBtn" class="primary full">解析 / 生成草稿</button>
+      <button id="parseBtn" class="primary full">1. 拆分原文步骤</button>
+      <button id="calibrateBtn" class="secondary full hidden" type="button">2a. LLM 辅助校准拆分</button>
+      <button id="generateBtn" class="primary full hidden" type="button">2b. 确认拆分并生成脚本</button>
       <ol id="pipelineSteps" class="pipeline-steps" aria-label="生成阶段">
-        <li id="pipelineDecompose" class="idle"><strong>文档拆解</strong><span>等待开始</span></li>
+        <li id="pipelineDecompose" class="idle"><strong>章节拆分</strong><span>等待开始</span></li>
+        <li id="pipelineCalibrate" class="idle"><strong>LLM 校准（可选）</strong><span>等待用户选择</span></li>
         <li id="pipelineGenerate" class="idle"><strong>脚本生成</strong><span>等待开始</span></li>
       </ol>
     </section>
@@ -33,13 +36,9 @@
         <span id="gapCount">缺口 0</span>
         <button id="nextGapBtn" class="secondary" type="button" disabled>Next 缺口</button>
       </div>
-      <div id="emptyState" class="empty-state">等待解析结果。系统不会使用本地关键字/正则猜测步骤。</div>
-      <section id="preconditionsSection" class="group hidden">
-        <h2>预制条件 <span id="preCount" class="count"></span></h2>
-        <div id="preconditionCards" class="rows"></div>
-      </section>
+      <div id="emptyState" class="empty-state">等待章节拆分结果。系统只使用显式 S 编号做结构切分，不用语义关键字猜测。</div>
       <section id="stepsSection" class="group hidden">
-        <h2>测试步骤 <span id="stepCount" class="count"></span></h2>
+        <h2>步骤有序列表 <span id="stepCount" class="count"></span></h2>
         <div id="stepCards" class="rows"></div>
       </section>
       <div class="hint">ⓘ 执行说明：点击“执行到此”将按顺序从第 0 项开始，依次执行到所选项（含该步），不会执行后续项。验证脚本应检查 <code>$COMMAND_OUTPUT</code>，不要重复主命令。</div>
@@ -140,7 +139,7 @@
         <p class="field-help">高级模式：自定义 HTTP adapter 必须实现 Workbench JSON 协议。详见 <code>docs/adapter-contract.md</code>。</p>
       </div>
       <label>Timeout ms
-        <input id="adapterTimeout" type="number" min="1000" step="1000" value="30000" />
+        <input id="adapterTimeout" type="number" min="1000" step="1000" value="600000" readonly />
       </label>
 
       <details class="remote-box">

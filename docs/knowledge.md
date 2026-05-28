@@ -47,4 +47,4 @@ Knowledge can currently target these model phases:
 - `generate` — draft a command for one reviewed item.
 - `validate` — draft an executable validation snippet for one reviewed item.
 
-The removed standalone precondition-detection flow is intentionally not a phase. Setup/precondition text may still appear as document structure, but the system no longer creates a separate “precondition satisfied” check path.
+Standalone prerequisite/preflight detection is intentionally not a phase. Knowledge is used during generation/validation, not as a separate prerequisite-status workflow.

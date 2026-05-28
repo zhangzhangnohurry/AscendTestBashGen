@@ -13,9 +13,8 @@ function item(index, type, command, validation = ': # validation uses $COMMAND_O
 }
 
 test('standalone script preserves fixed PASS/NO PASS output and exit codes', async () => {
-  const generated = generateStandaloneScript([item(0, 'precondition', 'true'), item(1, 'step', 'echo ok')]);
+  const generated = generateStandaloneScript([item(0, 'step', 'true'), item(1, 'step', 'echo ok')]);
   assert.equal(generated.ok, true);
-  assert.doesNotMatch(generated.script, /预制条件检查完成/);
   assert.match(generated.script, /用例执行完成: PASS/);
   assert.match(generated.script, /用例执行完成: PASS/);
   assert.match(generated.script, /用例执行完成: NO PASS/);

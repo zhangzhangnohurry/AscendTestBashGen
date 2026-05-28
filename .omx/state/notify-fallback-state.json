@@ -1,7 +1,7 @@
 {
-  "pid": 1786745,
+  "pid": 2801728,
   "parent_pid": 1314788,
-  "started_at": "2026-05-28T01:50:21.505Z",
+  "started_at": "2026-05-28T10:10:50.584Z",
   "cwd": "/home/ttelab/Documents/code/ascendTest",
   "notify_script": "/usr/local/src/node-v24.15.0-linux-x64/lib/node_modules/oh-my-codex/dist/scripts/notify-hook.js",
   "authority_only": true,
@@ -17,7 +17,7 @@
     "max_per_tick": 5,
     "run_count": 1,
     "leader_only": true,
-    "last_tick_at": "2026-05-28T01:50:21.508Z",
+    "last_tick_at": "2026-05-28T10:10:50.587Z",
     "last_result": {
       "processed": 0,
       "skipped": 8,
@@ -29,8 +29,8 @@
     "enabled": true,
     "leader_only": true,
     "stale_threshold_ms": 180000,
-    "precomputed_leader_stale": false,
-    "last_tick_at": "2026-05-28T01:50:21.514Z",
+    "precomputed_leader_stale": true,
+    "last_tick_at": "2026-05-28T10:10:50.593Z",
     "last_error": null,
     "run_count": 1
   },
@@ -57,10 +57,10 @@
   "fallback_auto_nudge": {
     "enabled": true,
     "stall_ms": 5000,
-    "last_tick_at": "2026-05-28T01:50:21.542Z",
-    "last_turn_at": "2026-05-25T14:01:24.804Z",
-    "last_turn_count": 5,
-    "last_message": "完成，已经按你的三点重新规整。\n\n### 1. 不再把大文档整篇塞上下文\n\n旧的两个大条目已经从 active index 撤下：\n\n- `huawei-edoc1100569784`\n- `huaw",
+    "last_tick_at": "2026-05-28T10:10:50.622Z",
+    "last_turn_at": "2026-05-28T09:42:05.669Z",
+    "last_turn_count": 15,
+    "last_message": "已按“更宽容的结构编号容错”改完，`S` 和 `E` 都一起调整了。\n\n## 现在支持\n\n除了原来的：\n\n```text\nS1.1\nS1/1\nS1。1\nE1.1\nE1/1\n```\n\n现在也支持这些错误",
     "last_reason": "eligible_but_not_sent",
     "last_error": null,
     "last_nudged_signature": "",
@@ -80,8 +80,8 @@
     "max_ms": 1000,
     "current_ms": 75,
     "idle_streak": 0,
-    "last_tick_at": "2026-05-28T01:50:21.548Z",
-    "last_activity_at": "2026-05-28T01:50:21.548Z",
+    "last_tick_at": "2026-05-28T10:10:50.628Z",
+    "last_activity_at": "2026-05-28T10:10:50.628Z",
     "last_activity_reason": "dispatch_drain"
   },
   "last_cycle_activity": "dispatch_drain"

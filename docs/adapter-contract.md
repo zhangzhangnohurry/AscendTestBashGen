@@ -33,7 +33,7 @@ Response:
   "ok": true,
   "items": [
     {
-      "type": "precondition",
+      "type": "step",
       "sourceText": "P1 original text",
       "intent": "human-readable intent",
       "command": "optional command draft",
@@ -49,7 +49,7 @@ Response:
 
 Rules:
 
-- `type`: `precondition` or `step`.
+- `type`: always `step`.
 - `target`: `local`, `host`, or `device`; SSH is the remote transport.
 - `commandEvidence`: use `explicit` only when `command` is copied from the source text. Use `inferred` for model/tool guesses and `none` when no command is present. Commands without explicit evidence are blocked until reviewed.
 - `validationEvidence`: use `explicit` only when the source text contains an executable validation snippet. Inferred validations are blocked until reviewed.
@@ -130,7 +130,7 @@ process.stdin.on('end', () => {
     console.log(JSON.stringify({
       ok: true,
       items: [
-        { type: 'precondition', sourceText: 'P1 adapter item', intent: 'check environment', command: 'true', commandEvidence: 'explicit', expected: 'success', validation: ': \"${COMMAND_OUTPUT}\"', validationEvidence: 'explicit', target: 'host' },
+        { type: 'step', sourceText: 'S1 adapter item', intent: 'check environment', command: 'true', commandEvidence: 'explicit', expected: 'success', validation: ': \"${COMMAND_OUTPUT}\"', validationEvidence: 'explicit', target: 'host' },
         { type: 'step', sourceText: 'S1 adapter item', intent: 'collect diagnostic log', command: 'printf "expected-token\\n"', commandEvidence: 'explicit', expected: 'expected token appears', validation: 'grep -q "expected-token" <<< "$COMMAND_OUTPUT"', validationEvidence: 'inferred', target: 'host' }
       ]
     }));

@@ -86,13 +86,17 @@ export function normalizeItem(item, index = item.index ?? 0) {
   return {
     id: item.id || `item-${index}`,
     index,
-    type: item.type || 'step',
+    type: 'step',
+    label: String(item.label ?? `S${index + 1}`).trim(),
+    depth: Number(item.depth || 1),
+    orderPath: Array.isArray(item.orderPath) ? item.orderPath : [index + 1],
     intent: String(item.intent ?? item.sourceText ?? '').trim(),
     sourceText: String(item.sourceText ?? item.intent ?? '').trim(),
     expected,
     target: item.target || TARGET.LOCAL,
     commandDraft,
     validationDraft: { ...validationDraft, ...validationReadiness(validationDraft) },
+    knowledgeRefs: Array.isArray(item.knowledgeRefs) ? item.knowledgeRefs : [],
     persistence: item.persistence || { state: 'not_suggested' }
   };
 }

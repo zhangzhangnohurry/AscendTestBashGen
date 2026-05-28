@@ -1,18 +1,20 @@
-import { COMMAND_PROVENANCE, ITEM_TYPE, TARGET } from '../domain/types.js';
+import { COMMAND_PROVENANCE, TARGET } from '../domain/types.js';
 import { createCommandDraft, createValidationDraft, normalizeItem } from '../domain/state.js';
 import { ConfigurableAdapter } from '../llm/adapter.js';
 import { retrieveKnowledge } from '../knowledge/retrieve.js';
+import { splitStructuredSteps } from './structure.js';
 
 /**
  * Full one-shot compatibility API: decompose the document, then generate every
  * item. The UI now calls the two stages separately, but tests and integrations
  * can still use this helper when they do not need progressive rendering.
  */
-export async function parseTestCase(rawText, { skills = [], adapter = new ConfigurableAdapter() } = {}) {
-  const decomposed = await decomposeTestCase(rawText, { adapter });
+export async function parseTestCase(rawText, { skills = [], adapter = new ConfigurableAdapter(), config = {} } = {}) {
+  const local = splitTestCaseStructure(rawText);
+  const decomposed = await decomposeTestCase(rawText, { adapter, items: local.items });
   const generated = [];
   for (const item of decomposed.items) {
-    generated.push(await generateItemDraft(item, { skills, adapter }));
+    generated.push(await generateItemDraft(item, { skills, adapter, config }));
   }
   return {
     rawText: String(rawText || ''),
@@ -22,21 +24,36 @@ export async function parseTestCase(rawText, { skills = [], adapter = new Config
 }
 
 /**
- * Stage 1: ask the configured model to preserve the document structure as
- * ordered items. No command execution happens here, and no local keyword or
- * regex logic tries to reinterpret the user source.
+ * Stage 0: split explicit S-numbered source sections locally before any model
+ * call. This uses only visible section labels and does not interpret semantics.
  */
-export async function decomposeTestCase(rawText, { adapter = new ConfigurableAdapter() } = {}) {
-  const knowledge = await retrieveKnowledge({ phase: 'decompose', text: String(rawText || ''), adapter });
-  const extraction = await adapter.extractTestCase(String(rawText || ''), { knowledge: knowledge.selected });
+export function splitTestCaseStructure(rawText) {
+  const items = splitStructuredSteps(rawText);
+  return {
+    rawText: String(rawText || ''),
+    items,
+    extraction: { configured: false, source: 'local-section-split' },
+    worklog: [`章节拆分完成：得到 ${items.length} 个步骤条目。`]
+  };
+}
+
+/**
+ * Optional model-assisted calibration: the model may adjust boundaries/order
+ * from the local section split, but it must still return step-only items.
+ */
+export async function decomposeTestCase(rawText, { adapter = new ConfigurableAdapter(), items = splitStructuredSteps(rawText) } = {}) {
+  const localItems = Array.isArray(items) ? items.map((item, index) => normalizeItem(item, index)) : splitStructuredSteps(rawText);
+  const expectedByLabel = new Map(localItems.map((item) => [item.label, text(item.expected)]));
+  const extraction = await adapter.extractTestCase(String(rawText || ''), { knowledge: [], structureItems: localItems });
   const sourceItems = Array.isArray(extraction?.items) ? extraction.items : [];
   const normalized = [];
 
   for (const [index, source] of sourceItems.entries()) {
-    normalized.push(createBaseItem(source, index));
+    const localExpected = expectedByLabel.get(text(source.label)) ?? text(localItems[index]?.expected);
+    normalized.push(createBaseItem(source, index, localExpected));
   }
 
-  const ordered = orderItems(normalized);
+  const ordered = orderItems(normalized.length ? normalized : localItems);
   return {
     rawText: String(rawText || ''),
     items: ordered,
@@ -50,7 +67,7 @@ export async function decomposeTestCase(rawText, { adapter = new ConfigurableAda
  * draft. This one-item-at-a-time boundary makes UI progress visible and keeps
  * failures isolated to the item currently being generated.
  */
-export async function generateItemDraft(item, { skills = [], adapter = new ConfigurableAdapter() } = {}) {
+export async function generateItemDraft(item, { skills = [], adapter = new ConfigurableAdapter(), config = {} } = {}) {
   const normalized = normalizeItem(item, item.index ?? 0);
   const commandDraft = normalized.commandDraft || createCommandDraft('', COMMAND_PROVENANCE.INFERRED);
   const validationDraft = normalized.validationDraft || createValidationDraft('', Boolean(normalized.expected));
@@ -67,15 +84,17 @@ export async function generateItemDraft(item, { skills = [], adapter = new Confi
     : null;
 
   let nextCommandDraft = commandDraft;
+  let commandKnowledge = { selected: [] };
   if (skill?.command) {
     nextCommandDraft = createCommandDraft(skill.command, COMMAND_PROVENANCE.SKILL_REUSE);
   } else if (canGenerateCommand && !text(commandDraft.value)) {
-    const commandKnowledge = await retrieveKnowledge({ phase: 'generate', isDeviceShell: normalized.target === TARGET.DEVICE, text: normalized.sourceText || normalized.intent, item: normalized, adapter });
+    commandKnowledge = await retrieveKnowledge({ phase: 'generate', isDeviceShell: normalized.target === TARGET.DEVICE, text: normalized.sourceText || normalized.intent, item: normalized, adapter });
     const inferredCommand = await adapter.inferCommand(normalized.intent || normalized.sourceText, {
       sourceText: normalized.sourceText,
       expected: normalized.expected,
       item: normalized,
-      knowledge: commandKnowledge.selected
+      knowledge: commandKnowledge.selected,
+      execution: buildExecutionContext(config)
     });
     if (text(inferredCommand)) {
       nextCommandDraft = createCommandDraft(inferredCommand, COMMAND_PROVENANCE.INFERRED, { inferenceAllowed: true });
@@ -83,6 +102,7 @@ export async function generateItemDraft(item, { skills = [], adapter = new Confi
   }
 
   let nextValidationDraft = validationDraft;
+  let validationKnowledge = { selected: [] };
   const needsValidation = Boolean(normalized.expected);
   const canGenerateValidation = needsValidation &&
     !text(validationDraft.value) &&
@@ -90,7 +110,7 @@ export async function generateItemDraft(item, { skills = [], adapter = new Confi
   if (skill?.validation) {
     nextValidationDraft = createValidationDraft(skill.validation, needsValidation, 'skill_reuse');
   } else if (canGenerateValidation) {
-    const validationKnowledge = await retrieveKnowledge({ phase: 'validate', isDeviceShell: normalized.target === TARGET.DEVICE, text: normalized.sourceText || normalized.expected, item: normalized, adapter });
+    validationKnowledge = await retrieveKnowledge({ phase: 'validate', isDeviceShell: normalized.target === TARGET.DEVICE, text: normalized.sourceText || normalized.expected, item: normalized, adapter });
     const inferredValidation = await adapter.inferValidation(normalized.expected, {
       sourceText: normalized.sourceText,
       intent: normalized.intent,
@@ -107,31 +127,38 @@ export async function generateItemDraft(item, { skills = [], adapter = new Confi
     target: skill?.target || normalized.target,
     commandDraft: nextCommandDraft,
     validationDraft: nextValidationDraft,
+    knowledgeRefs: knowledgeRefs([...(normalized.knowledgeRefs || []), ...commandKnowledge.selected, ...validationKnowledge.selected]),
     persistence: { state: nextCommandDraft.provenance === COMMAND_PROVENANCE.INFERRED ? 'suggested' : 'not_suggested' }
   }, normalized.index);
 }
 
-/** Normalizes a raw adapter item into the reviewable domain draft shape. */
-function createBaseItem(source, index) {
+/**
+ * Normalizes a raw adapter item into the reviewable domain draft shape.
+ * Expected-result text is deliberately sourced from the local S/E section split
+ * only. The model may calibrate boundaries and explicit commands, but it cannot
+ * invent an expected result or validation gate during decomposition.
+ */
+function createBaseItem(source, index, expectedFromLocal = '') {
   const intent = text(source.intent ?? source.sourceText ?? source.description);
   const sourceText = text(source.sourceText ?? source.description ?? intent);
   const originalCommand = text(source.command);
   const commandEvidence = evidence(source.commandEvidence ?? source.commandProvenance);
   const explicitCommand = originalCommand && commandEvidence === 'explicit';
   const inferredCommand = originalCommand && commandEvidence === 'inferred';
-  const expected = text(source.expected);
+  const expected = text(expectedFromLocal);
   const target = normalizeTarget(source.target);
   const commandValue = explicitCommand || inferredCommand ? originalCommand : '';
   const provenance = explicitCommand ? COMMAND_PROVENANCE.ORIGINAL : COMMAND_PROVENANCE.INFERRED;
-  const validationValue = text(source.validation);
-  const validationProvenance = validationValue
-    ? (evidence(source.validationEvidence ?? source.validationProvenance) === 'explicit' ? 'original_expected' : 'inferred_validation')
-    : 'blank';
+  const validationValue = '';
+  const validationProvenance = 'blank';
 
   return normalizeItem({
     id: text(source.id) || `item-${index}`,
     index,
-    type: normalizeType(source.type),
+    type: 'step',
+    label: text(source.label) || `S${index + 1}`,
+    depth: Number(source.depth || 1),
+    orderPath: Array.isArray(source.orderPath) ? source.orderPath : [index + 1],
     sourceText,
     intent: intent || sourceText,
     expected,
@@ -147,7 +174,7 @@ function buildDecomposeWorklog(items, extraction) {
   if (!extraction?.configured) {
     messages.push('No extraction adapter configured; input was not parsed. Configure CLI/HTTP extraction or enter structured data through a future editor flow.');
   } else {
-    messages.push(`文档拆解完成：得到 ${items.length} 个原文条目。`);
+    messages.push(`LLM 校准完成：得到 ${items.length} 个步骤条目。`);
   }
   return messages;
 }
@@ -168,10 +195,6 @@ function buildWorklog(items, extraction) {
   return messages;
 }
 
-function normalizeType(value) {
-  return value === ITEM_TYPE.PRECONDITION ? ITEM_TYPE.PRECONDITION : ITEM_TYPE.STEP;
-}
-
 function normalizeTarget(value) {
   return [TARGET.LOCAL, TARGET.HOST, TARGET.DEVICE].includes(value) ? value : TARGET.LOCAL;
 }
@@ -184,6 +207,31 @@ function evidence(value) {
   return String(value ?? '').trim().toLowerCase();
 }
 
+function buildExecutionContext(config = {}) {
+  const remote = config.remote || {};
+  return {
+    remote: {
+      host: text(remote.host),
+      username: text(remote.username),
+      port: remote.port || 22,
+      authMode: remote.privateKeyPath ? 'key' : (remote.password ? 'password' : ''),
+      rootMode: Boolean(remote.rootMode)
+    }
+  };
+}
+
+function knowledgeRefs(items = []) {
+  const seen = new Set();
+  const refs = [];
+  for (const item of items) {
+    const id = item?.id;
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    refs.push({ id, title: item.title || id, strength: item.strength || 'should' });
+  }
+  return refs;
+}
+
 async function adapterMatchSkill(adapter, item, skills) {
   if (!skills?.length || typeof adapter.matchSkill !== 'function') return null;
   const match = await adapter.matchSkill(item, skills);
@@ -191,13 +239,9 @@ async function adapterMatchSkill(adapter, item, skills) {
   return skills.find((skill) => skill.id === match.skillId) || null;
 }
 
-/** Preserve the source grouping order while showing setup/precondition items first. */
+/** Preserve source order after optional model calibration. */
 function orderItems(items) {
   return [...items]
-    .sort((a, b) => typeRank(a.type) - typeRank(b.type) || a.index - b.index)
-    .map((item, index) => ({ ...item, index, id: item.id || `item-${index}` }));
-}
-
-function typeRank(type) {
-  return type === ITEM_TYPE.PRECONDITION ? 0 : 1;
+    .sort((a, b) => a.index - b.index)
+    .map((item, index) => ({ ...item, index, type: 'step', id: item.id || `item-${index}` }));
 }

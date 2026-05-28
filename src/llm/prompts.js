@@ -48,9 +48,24 @@ ${JSON.stringify((payload.candidates || []).map((item) => ({ id: item.id, title:
 }
 
 function extractTestCasePrompt(payload) {
-  const knowledge = knowledgePromptSection(payload);
-  return `Extract this raw test case into ordered structured JSON. Do not invent commands. Only copy a command when the source text explicitly contains that executable command; otherwise leave command empty or mark it as inferred. Preserve every manual, conditional, or non-shell action as its own ordered item with an empty command rather than dropping it. If a sentence says a manual action must happen before a command, output the manual action first and the command second. Put setup/precondition text as type "precondition" and test steps as type "step" so the original document structure remains visible. target must be "local", "host", or "device". Validation must be executable shell that checks $COMMAND_OUTPUT or $COMMAND_STATUS and must not rerun the primary command; if you cannot write executable shell, leave validation empty. Apply selected knowledge items when relevant, but never override explicit source evidence. Return JSON only with shape {"ok":true,"items":[{"type":"precondition|step","sourceText":"...","intent":"...","command":"...","commandEvidence":"explicit|inferred|none","expected":"...","validation":"...","validationEvidence":"explicit|inferred|none","target":"host"}]}.
-${knowledge}
+  return `Calibrate the raw test case into ordered review steps. This is optional structure calibration only.
+
+Rules:
+- Preserve the source order and original wording.
+- Every item type must be "step". Do not output any non-step item types.
+- Prefer the provided local section split; only adjust boundaries if the split is visibly wrong.
+- Keep manual, conditional, login, power-cycle, user-switch, or other non-shell actions as separate step items.
+- Copy command only when the source text explicitly contains an executable command. Otherwise command must be empty and commandEvidence must be "none".
+- Do not infer commands.
+- expected must be copied only from the provided local section split, where E1/E1.1 text is attached to matching S1/S1.1 rows. If the local split expected is empty, expected must be empty. Do not invent expected results.
+- Do not generate validation scripts in this stage; validation must be empty and validationEvidence must be "none".
+- target must be "local", "host", or "device"; use "host" only when the source clearly says host/physical machine, use "device" only when it clearly says device side, otherwise use "local".
+
+Return JSON only:
+{"ok":true,"items":[{"type":"step","label":"S1 or S1.1","depth":1,"orderPath":[1],"sourceText":"original text slice","intent":"short meaning","command":"explicit command or empty","commandEvidence":"explicit|none","expected":"copy from matching local split expected or empty","validation":"","validationEvidence":"none","target":"local|host|device"}]}
+
+Local section split:
+${JSON.stringify((payload.context?.structureItems || []).map((item) => ({ label: item.label, depth: item.depth, sourceText: item.sourceText, expected: item.expected || '' })), null, 2)}
 
 Raw test case:
 ${payload.text || ''}`;
@@ -68,7 +83,7 @@ ${JSON.stringify(payload.skills || [], null, 2)}`;
 
 function inferCommandPrompt(payload) {
   const knowledge = knowledgePromptSection(payload);
-  return `Draft a command only if the intent is precise enough. Otherwise return an empty command. Apply selected knowledge items when relevant, but do not invent environment-specific commands without source support. Return JSON only: {"ok":true,"command":"..."}.
+  return `Draft one executable command only if the intent/source text is precise enough. Otherwise return an empty command. Apply selected knowledge items when relevant, but do not invent environment-specific commands without source support. Use execution context values, such as remote.host and remote.username, when selected knowledge explicitly requires them. Return JSON only: {"ok":true,"command":"..."}.
 ${knowledge}
 
 Intent:
