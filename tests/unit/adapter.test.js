@@ -37,7 +37,7 @@ process.stdin.on('end', () => {
   assert.deepEqual(await adapter.matchSkill({ intent: 'x' }, [{ id: 's1', intent: 'x', command: 'hidden command' }]), { action: 'reuse', skillId: 's1' });
   assert.equal(await adapter.inferCommand('anything'), 'echo configured');
   assert.equal(await adapter.inferValidation('ok'), 'true');
-  assert.deepEqual((await adapter.selectKnowledge({ phase: 'generate', candidates: [{ id: 'k1', title: 'K', summary: 'S' }] })).ids, ['k1']);
+  assert.deepEqual((await adapter.selectKnowledge({ candidates: [{ id: 'k1', title: 'K', summary: 'S' }] })).ids, ['k1']);
 });
 
 test('CLI adapter trace includes stdin/stdout conversation', async () => {

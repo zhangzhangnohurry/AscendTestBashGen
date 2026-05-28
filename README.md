@@ -67,8 +67,8 @@ src/llm/adapter.js
 
 检索机制：
 
-1. 本地代码只按结构化 metadata 过滤：`enabled`、`phases`、`isDeviceShell`。
-2. 模型先看 `index.json` 里的短摘要，语义选择相关知识项 ID。
+1. 本地代码只过滤 `enabled`，不再按 `phases` 或 `isDeviceShell` 做硬约束。
+2. 模型先看 `index.json` 里的短摘要，结合当前步骤语义选择相关知识项 ID。
 3. 只有被选中的 Markdown 正文会进入最终 prompt。
 
 当前已经整理的 Huawei 官方知识：

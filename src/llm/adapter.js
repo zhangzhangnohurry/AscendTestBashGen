@@ -84,9 +84,9 @@ export class ConfigurableAdapter {
   }
 
 
-  async selectKnowledge({ phase, isDeviceShell, text = '', item = null, candidates = [], limit = 6 } = {}) {
+  async selectKnowledge({ text = '', item = null, candidates = [], limit = 6 } = {}) {
     if (!this.#configured() || !Array.isArray(candidates) || !candidates.length) return { configured: false, ids: [] };
-    const response = await this.#call({ task: 'selectKnowledge', phase, isDeviceShell, text, item, candidates, limit });
+    const response = await this.#call({ task: 'selectKnowledge', text, item, candidates, limit });
     const ids = Array.isArray(response.ids) ? response.ids
       : Array.isArray(response.selectedIds) ? response.selectedIds
         : Array.isArray(response.knowledgeIds) ? response.knowledgeIds
@@ -376,8 +376,6 @@ function summarizePayload(payload) {
   }
   if (Array.isArray(payload.skills)) summary.skillCount = payload.skills.length;
   if (Array.isArray(payload.candidates)) summary.knowledgeCandidateCount = payload.candidates.length;
-  if (payload.phase) summary.phase = payload.phase;
-  if (typeof payload.isDeviceShell === 'boolean') summary.isDeviceShell = payload.isDeviceShell;
   if (Array.isArray(payload.context?.knowledge)) summary.selectedKnowledgeIds = payload.context.knowledge.map((item) => item.id);
   return summary;
 }

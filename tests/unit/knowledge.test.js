@@ -4,7 +4,7 @@ import { mkdtemp, mkdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
-test('knowledge retrieval filters metadata locally then lets adapter choose summaries and reads selected markdown', async () => {
+test('knowledge retrieval offers all enabled summaries then reads model-selected markdown', async () => {
   const dir = await mkdtemp(path.join(tmpdir(), 'cw-knowledge-'));
   process.env.WORKBENCH_DIR = dir;
   const marker = Date.now();
@@ -18,9 +18,9 @@ test('knowledge retrieval filters metadata locally then lets adapter choose summ
   await writeFile(path.join(knowledgeDir, 'index.json'), JSON.stringify({
     version: 1,
     items: [
-      { id: 'switch-user', title: 'Switch user', summary: 'Handle user switching explicitly.', path: 'items/switch-user.md', enabled: true, phases: ['generate'], isDeviceShell: false, strength: 'must' },
-      { id: 'generate', title: 'Generate', summary: 'Reuse a reviewed command pattern.', path: 'items/generate.md', enabled: true, phases: ['generate'], isDeviceShell: true },
-      { id: 'disabled', title: 'Disabled', summary: 'Should not appear.', path: 'items/disabled.md', enabled: false, phases: ['generate'], isDeviceShell: false }
+      { id: 'switch-user', title: 'Switch user', summary: 'Handle user switching explicitly.', path: 'items/switch-user.md', enabled: true, strength: 'must' },
+      { id: 'generate', title: 'Generate', summary: 'Reuse a reviewed command pattern.', path: 'items/generate.md', enabled: true },
+      { id: 'disabled', title: 'Disabled', summary: 'Should not appear.', path: 'items/disabled.md', enabled: false }
     ]
   }));
 
@@ -28,19 +28,19 @@ test('knowledge retrieval filters metadata locally then lets adapter choose summ
   const adapter = {
     async selectKnowledge(request) {
       calls.push(request);
-      assert.deepEqual(request.candidates.map((entry) => entry.id), ['switch-user']);
+      assert.deepEqual(request.candidates.map((entry) => entry.id), ['switch-user', 'generate']);
       return { configured: true, ids: ['switch-user', 'disabled', 'missing'] };
     }
   };
 
-  const result = await retrieveKnowledge({ phase: 'generate', isDeviceShell: false, text: 'source text is not matched locally', adapter });
+  const result = await retrieveKnowledge({ text: 'source text is not matched locally', adapter });
   assert.equal(calls.length, 1);
   assert.deepEqual(result.selectedIds, ['switch-user']);
   assert.match(result.selected[0].content, /Use su \$user/);
 
   const blocked = await persistKnowledgeItem({ title: 'Draft', content: 'body', confirmed: false });
   assert.equal(blocked.persisted, false);
-  const saved = await persistKnowledgeItem({ title: 'Manual experience', content: '# Manual\n\nKeep this reviewable.', phases: ['generate'], isDeviceShell: false, confirmed: true });
+  const saved = await persistKnowledgeItem({ title: 'Manual experience', content: '# Manual\n\nKeep this reviewable.', confirmed: true });
   assert.equal(saved.persisted, true);
-  assert((await listKnowledgeSummaries({ phase: 'generate', isDeviceShell: false })).some((item) => item.id === saved.item.id));
+  assert((await listKnowledgeSummaries()).some((item) => item.id === saved.item.id));
 });

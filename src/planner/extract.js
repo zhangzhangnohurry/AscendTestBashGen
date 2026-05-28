@@ -88,7 +88,7 @@ export async function generateItemDraft(item, { skills = [], adapter = new Confi
   if (skill?.command) {
     nextCommandDraft = createCommandDraft(skill.command, COMMAND_PROVENANCE.SKILL_REUSE);
   } else if (canGenerateCommand && !text(commandDraft.value)) {
-    commandKnowledge = await retrieveKnowledge({ phase: 'generate', isDeviceShell: normalized.target === TARGET.DEVICE, text: normalized.sourceText || normalized.intent, item: normalized, adapter });
+    commandKnowledge = await retrieveKnowledge({ text: normalized.sourceText || normalized.intent, item: normalized, adapter });
     const inferredCommand = await adapter.inferCommand(normalized.intent || normalized.sourceText, {
       sourceText: normalized.sourceText,
       expected: normalized.expected,
@@ -110,7 +110,7 @@ export async function generateItemDraft(item, { skills = [], adapter = new Confi
   if (skill?.validation) {
     nextValidationDraft = createValidationDraft(skill.validation, needsValidation, 'skill_reuse');
   } else if (canGenerateValidation) {
-    validationKnowledge = await retrieveKnowledge({ phase: 'validate', isDeviceShell: normalized.target === TARGET.DEVICE, text: normalized.sourceText || normalized.expected, item: normalized, adapter });
+    validationKnowledge = await retrieveKnowledge({ text: normalized.sourceText || normalized.expected, item: normalized, adapter });
     const inferredValidation = await adapter.inferValidation(normalized.expected, {
       sourceText: normalized.sourceText,
       intent: normalized.intent,

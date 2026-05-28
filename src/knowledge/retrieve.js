@@ -5,13 +5,12 @@ import { listKnowledgeSummaries, readKnowledgeItems } from './store.js';
  * metadata, then the configured model selects semantically relevant ids from
  * summaries. The full Markdown body is loaded only after model selection.
  */
-export async function retrieveKnowledge({ phase, isDeviceShell, target, text = '', item = null, adapter, limit = 6 } = {}) {
-  const deviceShell = normalizeDeviceShellFilter(isDeviceShell, target);
-  const candidates = await listKnowledgeSummaries({ phase, isDeviceShell: deviceShell });
+export async function retrieveKnowledge({ text = '', item = null, adapter, limit = 6 } = {}) {
+  const candidates = await listKnowledgeSummaries();
   if (!candidates.length || !adapter || typeof adapter.selectKnowledge !== 'function') {
     return emptyResult(candidates.length);
   }
-  const selection = await adapter.selectKnowledge({ phase, isDeviceShell: deviceShell, text, item, candidates, limit });
+  const selection = await adapter.selectKnowledge({ text, item, candidates, limit });
   const selectedIds = normalizeSelectedIds(selection, candidates, limit);
   const selected = selectedIds.length ? await readKnowledgeItems(selectedIds) : [];
   return {
@@ -27,13 +26,6 @@ export function formatKnowledgeForPrompt(knowledge = []) {
   const selected = Array.isArray(knowledge) ? knowledge : [];
   if (!selected.length) return '';
   return selected.map((item, index) => `Knowledge ${index + 1}: ${item.title || item.id}\nID: ${item.id}\nStrength: ${item.strength || 'should'}\nSummary: ${item.summary || ''}\nContent:\n${item.content || ''}`).join('\n\n---\n\n');
-}
-
-function normalizeDeviceShellFilter(isDeviceShell, target) {
-  if (typeof isDeviceShell === 'boolean') return isDeviceShell;
-  if (target === 'device') return true;
-  if (target === 'host' || target === 'local') return false;
-  return undefined;
 }
 
 function normalizeSelectedIds(selection, candidates, limit) {

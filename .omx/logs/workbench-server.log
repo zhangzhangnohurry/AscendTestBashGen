@@ -1,8 +1,15 @@
 Command Workbench listening on http://localhost:3001
 [workbench] adapter route started { route: '/api/adapter/health', provider: 'llm-api' }
+[workbench] adapter route started { route: '/api/adapter/health', provider: 'llm-api' }
 [workbench] adapter route completed {
   route: '/api/adapter/health',
-  durationMs: 1398,
+  durationMs: 1252,
+  interactionCount: 1,
+  tasks: [ 'health' ]
+}
+[workbench] adapter route completed {
+  route: '/api/adapter/health',
+  durationMs: 1461,
   interactionCount: 1,
   tasks: [ 'health' ]
 }

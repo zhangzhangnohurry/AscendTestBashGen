@@ -35,13 +35,12 @@ export async function ensureKnowledgeStore() {
  * Returns compact metadata used for candidate selection. This intentionally
  * avoids reading Markdown bodies until the model has selected ids.
  */
-export async function listKnowledgeSummaries({ phase, isDeviceShell } = {}) {
+export async function listKnowledgeSummaries() {
   await ensureKnowledgeStore();
   const index = await readKnowledgeIndex();
   return index.items
     .map(normalizeSummary)
-    .filter((item) => item.id && item.path && item.enabled !== false)
-    .filter((item) => matchesMetadata(item, { phase, isDeviceShell }));
+    .filter((item) => item.id && item.path && item.enabled !== false);
 }
 
 export async function readKnowledgeItems(ids = []) {
@@ -63,7 +62,7 @@ export async function saveKnowledgeIndex(items) {
 }
 
 /** Persists one user-authored experience item and indexes it for later selection. */
-export async function persistKnowledgeItem({ title, content, summary = '', phases = [], isDeviceShell = null, strength = 'should', confirmed = false }) {
+export async function persistKnowledgeItem({ title, content, summary = '', strength = 'should', confirmed = false }) {
   if (!confirmed) return { persisted: false, reason: 'confirmation_required' };
   const body = text(content);
   if (!body) return { persisted: false, reason: 'content_required' };
@@ -79,8 +78,6 @@ export async function persistKnowledgeItem({ title, content, summary = '', phase
     summary: text(summary) || body.slice(0, 200),
     path: relativePath,
     enabled: true,
-    phases,
-    isDeviceShell,
     strength,
     createdAt: nowIso(),
     updatedAt: nowIso()
@@ -102,19 +99,10 @@ function normalizeSummary(item = {}) {
     summary: text(item.summary || item.description),
     path: text(item.path),
     enabled: item.enabled !== false,
-    phases: list(item.phases || item.phase),
-    isDeviceShell: normalizeDeviceShell(item.isDeviceShell),
     strength: normalizeStrength(item.strength),
     createdAt: text(item.createdAt),
     updatedAt: text(item.updatedAt)
   };
-}
-
-function matchesMetadata(item, { phase, isDeviceShell } = {}) {
-  const phases = item.phases || [];
-  const phaseOk = !phase || phases.length === 0 || phases.includes(String(phase));
-  const deviceOk = typeof isDeviceShell !== 'boolean' || item.isDeviceShell === null || item.isDeviceShell === isDeviceShell;
-  return phaseOk && deviceOk;
 }
 
 function resolveKnowledgePath(relativePath) {
@@ -126,22 +114,9 @@ function resolveKnowledgePath(relativePath) {
   return resolved;
 }
 
-function normalizeDeviceShell(value) {
-  if (value === true || value === false) return value;
-  if (String(value).toLowerCase() === 'true') return true;
-  if (String(value).toLowerCase() === 'false') return false;
-  return null;
-}
-
 function normalizeStrength(value) {
   const normalized = text(value).toLowerCase();
   return ['must', 'should', 'may'].includes(normalized) ? normalized : 'should';
-}
-
-function list(value) {
-  if (Array.isArray(value)) return value.map(text).filter(Boolean);
-  const single = text(value);
-  return single ? [single] : [];
 }
 
 function text(value) {

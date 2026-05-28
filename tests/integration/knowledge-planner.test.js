@@ -12,7 +12,7 @@ async function seedKnowledge() {
   await writeFile(path.join(knowledgeDir, 'items', 'experience.md'), '# Experience\n\nPrefer explicit context switching when needed.');
   await writeFile(path.join(knowledgeDir, 'index.json'), JSON.stringify({
     version: 1,
-    items: [{ id: 'experience', title: 'Experience', summary: 'Relevant generation experience.', path: 'items/experience.md', enabled: true, phases: ['generate'], isDeviceShell: false, strength: 'must' }]
+    items: [{ id: 'experience', title: 'Experience', summary: 'Relevant generation experience.', path: 'items/experience.md', enabled: true, strength: 'must' }]
   }));
 }
 
@@ -22,7 +22,7 @@ test('planner skips knowledge during decompose and injects selected markdown dur
   const seen = [];
   const adapter = {
     async selectKnowledge(request) {
-      seen.push({ task: 'selectKnowledge', phase: request.phase, candidates: request.candidates.map((item) => item.id) });
+      seen.push({ task: 'selectKnowledge', candidates: request.candidates.map((item) => item.id) });
       return { configured: true, ids: ['experience'] };
     },
     async extractTestCase(text, context) {
@@ -41,7 +41,7 @@ test('planner skips knowledge during decompose and injects selected markdown dur
   const generated = await generateItemDraft(decomposed.items[0], { adapter });
 
   assert.equal(generated.commandDraft.value, 'echo from-knowledge-context');
-  assert.deepEqual(seen.filter((entry) => entry.task === 'selectKnowledge').map((entry) => entry.phase), ['generate']);
+  assert.deepEqual(seen.filter((entry) => entry.task === 'selectKnowledge').map((entry) => entry.candidates), [['experience']]);
   assert.equal(seen.find((entry) => entry.task === 'extractTestCase').knowledge.length, 0);
   assert.match(seen.find((entry) => entry.task === 'inferCommand').content, /explicit context switching/);
 });
@@ -60,8 +60,6 @@ test('SSH login experience is persisted as generation knowledge and receives rem
       summary: 'root 用户登录物理机器时生成 ssh root@execution.remote.host',
       path: 'items/ssh-login.md',
       enabled: true,
-      phases: ['generate'],
-      isDeviceShell: false,
       strength: 'must'
     }]
   }));
