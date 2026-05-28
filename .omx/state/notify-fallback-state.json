@@ -1,7 +1,7 @@
 {
-  "pid": 1752942,
+  "pid": 1759532,
   "parent_pid": 1314788,
-  "started_at": "2026-05-28T01:32:36.674Z",
+  "started_at": "2026-05-28T01:35:52.864Z",
   "cwd": "/home/ttelab/Documents/code/ascendTest",
   "notify_script": "/usr/local/src/node-v24.15.0-linux-x64/lib/node_modules/oh-my-codex/dist/scripts/notify-hook.js",
   "authority_only": true,
@@ -17,7 +17,7 @@
     "max_per_tick": 5,
     "run_count": 1,
     "leader_only": true,
-    "last_tick_at": "2026-05-28T01:32:36.677Z",
+    "last_tick_at": "2026-05-28T01:35:52.867Z",
     "last_result": {
       "processed": 0,
       "skipped": 8,
@@ -29,8 +29,8 @@
     "enabled": true,
     "leader_only": true,
     "stale_threshold_ms": 180000,
-    "precomputed_leader_stale": true,
-    "last_tick_at": "2026-05-28T01:32:36.684Z",
+    "precomputed_leader_stale": false,
+    "last_tick_at": "2026-05-28T01:35:52.874Z",
     "last_error": null,
     "run_count": 1
   },
@@ -57,7 +57,7 @@
   "fallback_auto_nudge": {
     "enabled": true,
     "stall_ms": 5000,
-    "last_tick_at": "2026-05-28T01:32:36.719Z",
+    "last_tick_at": "2026-05-28T01:35:52.899Z",
     "last_turn_at": "2026-05-25T14:01:24.804Z",
     "last_turn_count": 5,
     "last_message": "完成，已经按你的三点重新规整。\n\n### 1. 不再把大文档整篇塞上下文\n\n旧的两个大条目已经从 active index 撤下：\n\n- `huawei-edoc1100569784`\n- `huaw",
@@ -80,8 +80,8 @@
     "max_ms": 1000,
     "current_ms": 75,
     "idle_streak": 0,
-    "last_tick_at": "2026-05-28T01:32:36.725Z",
-    "last_activity_at": "2026-05-28T01:32:36.725Z",
+    "last_tick_at": "2026-05-28T01:35:52.906Z",
+    "last_activity_at": "2026-05-28T01:35:52.906Z",
     "last_activity_reason": "dispatch_drain"
   },
   "last_cycle_activity": "dispatch_drain"
